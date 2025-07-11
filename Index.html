@@ -1,0 +1,42 @@
+<!-- Index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HIU Peer Review</title>
+
+<?!= include('Styles'); ?>
+
+</head>
+<body>
+
+<!-- Title Block -->
+<div class="title" id="titleBlock">
+  <div id="formTitle" class="title"></div>
+  <div id="submissionMessage" style="display: none;">Your response has been recorded</div> 
+</div>
+
+<!-- Loader -->
+<div id="loader" class="loader"></div> 
+
+<!-- Questions Container -->
+<div id="questionsContainer"></div>
+
+<!-- Demographic Container -->
+<div id="demographicForm" style="display: none;">
+  <div id="demographicContainer"></div>
+  <div> <button type="button" id="finalSubmitButton" onclick="sendSubmission()">SUBMIT</button> </div>
+</div>
+
+<!-- Submit Block class="form-container" -->
+<div id="submitBlock" style="display: none;" class="input-container">
+  <div> <button type="button" id="reloadButton" onclick="sendResponse(false)">REVIEW ANOTHER PEER?</button> </div>
+  <div> <button type="button" id="submitButton" onclick="sendResponse(true)">SUBMIT</button> </div>
+</div>
+
+<?!= include('Script'); ?>
+
+</body>
+</html>
