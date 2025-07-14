@@ -3,32 +3,31 @@
 <script>
 
 /**
- * This system is dependent of the Google Sheets file titled "Database".
- * 
- * The Database spreadsheet contains 3 sheets.
- * Each sheet loads and saves data for this system.
- * 
- * Sheet1: Peer Review Survey
- *    LOADS:
- *      - survey title
- *      - question text
- *      - slider labels (optional)
- *    SAVES:
- *      - subject ID
- *      - response(s)
- * 
- * Sheet2: Demographic Form
- *    LOADS:
- *      - demographic question text
- *      - radio button labels
- *    SAVES: 
- *      - subject ID
- *      - subject demographic data
- *     
- * Sheet3: Status and QR Code
- *    LOADS:
- *      - survey availabity status
- * 
+  This system is dependent of the Google Sheets file titled "Database".
+  
+  The Database spreadsheet contains 3 sheets.
+  Each sheet loads and saves data for this system.
+  
+  Sheet1: Peer Review Survey
+     LOADS:
+       - survey title
+       - question text
+       - slider labels (optional)
+     SAVES:
+       - subject ID
+       - response(s)
+  
+  Sheet2: Demographic Form
+     LOADS:
+       - demographic question text
+       - radio button labels
+     SAVES: 
+       - subject ID
+       - subject demographic data
+      
+  Sheet3: Status and QR Code
+     LOADS:
+       - survey availabity status
  */
 
 
@@ -77,38 +76,38 @@ let demographicData = [];
 // FUNCTIONS
 
 /**
- * Dynamically generates and displays peer review slider questions in the HTML form.
- * 
- * Loops through each question from the "questions" array.
- * Creates a block for each question including:
- *    - The question text
- *    - A slider input with two extreme labels (Default: "Extreme Negative/Extreme Positive")
- * 
- * Inserts each question block into "questionsContainer" element.
- * 
- * Sets up the submit block:
- *    - Initializes the reload button label with the current review count (1).
- *    - Displays the submit button.
- * 
- * Disables the loading indicator when questions are loaded.
- * 
- * Global Variables Used:
- *    - questions: An array of question strings.
- *    - labelOptions: An array of [leftLabel, rightLabel] arrays or nulls.
- *    - reviewCount: A global counter tracking how many peer reviews have been completed.
- * 
- * HTML Element IDs Used:
- *    - questionsContainer: The section of the webpage where all survey question blocks are inserted.
- *    - loader: An animated loading indicator.
- *    - submitBlock: The container for the sumbit button and reload button.
- *    - reloadButton: The option for subjects to review another peer.
+  Dynamically generates and displays peer review slider questions in the HTML form.
+  
+  Loops through each question from the "questions" array.
+  Creates a block for each question including:
+     - The question text
+     - A slider input with two extreme labels (Default: "Extreme Negative/Extreme Positive")
+  
+  Inserts each question block into "questionsContainer" element.
+  
+  Sets up the submit block:
+     - Initializes the reload button label with the current review count (1).
+     - Displays the submit button.
+  
+  Disables the loading indicator when questions are loaded.
+  
+  Global Variables Used:
+     - questions: An array of question strings.
+     - labelOptions: An array of [leftLabel, rightLabel] arrays or nulls.
+     - reviewCount: A global counter tracking how many peer reviews have been completed.
+  
+  HTML Element IDs Used:
+     - questionsContainer: The section of the webpage where all survey question blocks are inserted.
+     - loader: An animated loading indicator.
+     - submitBlock: The container for the sumbit button and reload button.
+     - reloadButton: The option for subjects to review another peer.
  */
 function loadFormContent() {
 
   const questionsContainer = document.getElementById("questionsContainer");
 
   // loop through and set up each question from the "questions" array
-  questions.forEach((question, index) => { /
+  questions.forEach((question, index) => {
     // create a wrapper element for each question block
     const questionBlock = document.createElement("div");
     questionBlock.className = "form-container question-block";
@@ -173,8 +172,8 @@ function loadFormContent() {
     questionBlock.appendChild(labelledSliderContainer);
 
     // adjust the width and center alignment of the question block
-    questionBlock.style.width = "100%";
-    questionBlock.style.width = "1000px";
+    questionBlock.style.width = "90%";
+    //questionBlock.style.width = //"800px";
     questionBlock.style.margin = "20px auto";
 
     // add the question block to the questions container
@@ -195,20 +194,20 @@ function loadFormContent() {
 
 
 /**
- * Resets the peer review form to its initial state for the next review round.
- * 
- * The subjects view window smoothly scrolls to the top of the page.
- * All slider inputs are reset to the default midpoint value (50).
- * Updates the text of the reload button with the current review count.
- * Disables the reload button if the maximum number of reviews (50) has been reached.
- * 
- * Global Variables Used: 
- *    - questions
- *    - reviewCount
- * 
- * HTML Element IDs Used:
- *    - Slider inputs, identified by IDs in the format `slider_<index>`
- *    - reloadButton
+  Resets the peer review form to its initial state for the next review round.
+  
+  The subjects view window smoothly scrolls to the top of the page.
+  All slider inputs are reset to the default midpoint value (50).
+  Updates the text of the reload button with the current review count.
+  Disables the reload button if the maximum number of reviews (50) has been reached.
+  
+  Global Variables Used: 
+     - questions
+     - reviewCount
+  
+  HTML Element IDs Used:
+     - Slider inputs, identified by IDs in the format `slider_<index>`
+     - reloadButton
  */
 function reloadFormContent() {
   // smoothly scrolls back to the top of the survey
@@ -234,30 +233,30 @@ function reloadFormContent() {
 
 
 /**
- * Collects the current slider responses, validates them, and either:
- *    - Reloads the form for another peer review (finalSubmit == false), or
- *    - Proceeds to the demographic form (finalSubmit == true).
- * 
- * Iterates through each peer review question.
- * Retrieves the slider value from each question and appends it to a temporary "newResponse" array.
- *    - Slider inputs have IDs in the format `slider_<index>`.
- * Optionally validates answers (currently all assumed to be valid).
- * Adds the completed newResponse to the global "responses" 2D array.
- * Depending on "finalSubmit":
- *    - If false: Increments review count and resets form, invoking reloadFormContent().
- *    - If true: Hides the question form and shows the demographic form.
- * 
- * Global Variables Used:
- *    - questions: An array of peer review questions.
- *    - responses: An array that stores all submitted peer review responses.
- *    - reviewCount: An integer tracking the number of peer reviews, including the one in progress.
- * 
- * HTML Element IDs Used:
- *    - questionsContainer: Gets unrendered if finalSubmit is true.
- *    - submitBlock: Gets unrendered if finalSubmit is true.
- *    - loader
- * 
- * @param {boolean} finalSubmit - Indicates whether this is the final review before the demographic form is loaded.
+  Collects the current slider responses, validates them, and either:
+     - Reloads the form for another peer review (finalSubmit == false), or
+     - Proceeds to the demographic form (finalSubmit == true).
+  
+  Iterates through each peer review question.
+  Retrieves the slider value from each question and appends it to a temporary "newResponse" array.
+     - Slider inputs have IDs in the format `slider_<index>`.
+  Optionally validates answers (currently all assumed to be valid).
+  Adds the completed newResponse to the global "responses" 2D array.
+  Depending on "finalSubmit":
+     - If false: Increments review count and resets form, invoking reloadFormContent().
+     - If true: Hides the question form and shows the demographic form.
+  
+  Global Variables Used:
+     - questions: An array of peer review questions.
+     - responses: An array that stores all submitted peer review responses.
+     - reviewCount: An integer tracking the number of peer reviews, including the one in progress.
+  
+  HTML Element IDs Used:
+     - questionsContainer: Gets unrendered if finalSubmit is true.
+     - submitBlock: Gets unrendered if finalSubmit is true.
+     - loader
+  
+  @param {boolean} finalSubmit - Indicates whether this is the final review before the demographic form is loaded.
  */
 function sendResponse(finalSubmit) {
   // temporary array to collect the slider answers of this peer review response
@@ -321,33 +320,33 @@ function sendResponse(finalSubmit) {
 
 
 /**
- * Dynamically generates and displays the demographic form using radio button inputs.
- * 
- * Loops through each demographic question from the "demographicQuestions" array.
- * Creates a block for each demographic question including:
- *    - The demographic question text
- *    - A radio button panel
- * 
- * Button Panel Creation:
- *    - Generates a set of radio buttons from the corresponding options.
- *    - All buttons are assigned them the same `name` attribute (`input_<index>`).
- *    - Grouping the buttons with the index of their associated demographic question.
- * 
- * Inserts each question block into "demographicContainer" element.
- * 
- * Disables the loading indicator.
- * Displays the demographicForm section with the finalSubmitButton (invokes sendSubmission() on click).
- * 
- * Global Variables Used:
- *    - demographicQuestions:  An array of question strings
- *    - demographicOptions: A 2D array of answer options for each question.
- * 
- * HTML Element IDs Used:
- *    - demographicForm: Contains the demographicContainer and finalSubmitButton.
- *    - demographicContainer: The section where all the demographic question blocks get appeneded to.
- *    - loader
- * 
- * @param {Array<any>} responses : Currently unused. May be reworked in a future version to reduce global variable usage.
+  Dynamically generates and displays the demographic form using radio button inputs.
+  
+  Loops through each demographic question from the "demographicQuestions" array.
+  Creates a block for each demographic question including:
+     - The demographic question text
+     - A radio button panel
+  
+  Button Panel Creation:
+     - Generates a set of radio buttons from the corresponding options.
+     - All buttons are assigned them the same `name` attribute (`input_<index>`).
+     - Grouping the buttons with the index of their associated demographic question.
+  
+  Inserts each question block into "demographicContainer" element.
+  
+  Disables the loading indicator.
+  Displays the demographicForm section with the finalSubmitButton (invokes sendSubmission() on click).
+  
+  Global Variables Used:
+     - demographicQuestions:  An array of question strings
+     - demographicOptions: A 2D array of answer options for each question.
+  
+  HTML Element IDs Used:
+     - demographicForm: Contains the demographicContainer and finalSubmitButton.
+     - demographicContainer: The section where all the demographic question blocks get appeneded to.
+     - loader
+  
+  @param {Array<any>} responses : Currently unused. May be reworked in a future version to reduce global variable usage.
  */
 function loadDemographicForm(responses) {
 
@@ -411,30 +410,30 @@ function loadDemographicForm(responses) {
 
 
 /**
- * Validates the subject's demographic data, then submits their peer review response(s) and demographic data if the survey is still available. 
- * 
- * Iterates through all demographic questions.
- *    - Ensures that a radio button has been selected for each.
- *    - Highlights any unanswered questions in red.
- *    - Stores valid selection set in selectedOptions.
- * If validation passes:
- *    - Pushes all selected answers into the global "demographicData" array.
- *    - Hides the "demographicForm" section and displays the "loader" element.
- * Calls checkActiveStatus() to determine if the survey is still open.
- * If the survey is "ACTIVE", sends the peer review and demographic data to the server using submitResponses().
- *    - On success, displays a submission confirmation message.
- * If the survey is "INACTIVE", notifies the user that the survey is closed.
- * 
- * Backend Apps Script (Code.gs) provides checkActiveStatus() and submitResponses() functions.
- * 
- * Global Variables Used:
- *    - demographicQuestions
- *    - demographicData
- *    - responses
- * 
- * HTML Element IDs Used:
- *    - demographic-question-block: Highlighted red for unfinished after a submission attempt.
- *    - Radio inputs for each question have `name="input_<index>"`.
+  Validates the subject's demographic data, then submits their peer review response(s) and demographic data if the survey is still available. 
+  
+  Iterates through all demographic questions.
+     - Ensures that a radio button has been selected for each.
+     - Highlights any unanswered questions in red.
+     - Stores valid selection set in selectedOptions.
+  If validation passes:
+     - Pushes all selected answers into the global "demographicData" array.
+     - Hides the "demographicForm" section and displays the "loader" element.
+  Calls checkActiveStatus() to determine if the survey is still open.
+  If the survey is "ACTIVE", sends the peer review and demographic data to the server using submitResponses().
+     - On success, displays a submission confirmation message.
+  If the survey is "INACTIVE", notifies the user that the survey is closed.
+  
+  Backend Apps Script (Code.gs) provides checkActiveStatus() and submitResponses() functions.
+  
+  Global Variables Used:
+     - demographicQuestions
+     - demographicData
+     - responses
+  
+  HTML Element IDs Used:
+     - demographic-question-block: Highlighted red for unfinished after a submission attempt.
+     - Radio inputs for each question have `name="input_<index>"`.
  */
 function sendSubmission() {
   // set valid flag to true, assume all answer are valid until proven otherwise
