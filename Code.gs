@@ -1,12 +1,12 @@
 // Code.gs
 
 /**
- * Adds a custom menu tab to the Google Sheets UI when the spreadsheet is opened.
- * 
- * Automatically triggered when the spreadsheet is opened. 
- * Adds a new menu tab called "Peer Review" to the toolbar, 
- * containing one item labeled "Open Webpage". 
- * When this item is selected, the openWebpage() function is invoked.
+  Adds a custom menu tab to the Google Sheets UI when the spreadsheet is opened.
+  
+  Automatically triggered when the spreadsheet is opened. 
+  Adds a new menu tab called "Peer Review" to the toolbar, 
+  containing one item labeled "Open Webpage". 
+  When this item is selected, the openWebpage() function is invoked.
  */
 function onOpen() {
 
@@ -20,11 +20,11 @@ function onOpen() {
 
 
 /**
- * Opens a new browser tab with the URL specified in cell 3A of Sheet3.
- * 
- * Opens Sheet3 and gets the URL string from cell 3A.
- * Displays a modal dialog box to the user, triggering the new tab.
- * Runs a short HTML script that opens the URL in a new tab and closes the dialog.
+  Opens a new browser tab with the URL specified in cell 3A of Sheet3.
+  
+  Opens Sheet3 and gets the URL string from cell 3A.
+  Displays a modal dialog box to the user, triggering the new tab.
+  Runs a short HTML script that opens the URL in a new tab and closes the dialog.
  */
 function openWebpage() {
 
@@ -98,12 +98,12 @@ function title() {
 
 
 /**
- * Retrieves the current survey status from Sheet3.
- * 
- * Opens Sheet3, reads the value from cell 2B.
- * Returns the value, which represents the current status of the survey.
- * 
- * @returns {string} The current status of the survey from cell 2B ("ACTIVE" or "INACTIVE")
+  Retrieves the current survey status from Sheet3.
+  
+  Opens Sheet3, reads the value from cell 2B.
+  Returns the value, which represents the current status of the survey.
+  
+  @returns {string} The current status of the survey from cell 2B ("ACTIVE" or "INACTIVE")
  */
 function checkActiveStatus() {
 
@@ -124,25 +124,25 @@ function checkActiveStatus() {
 
 
 /**
- * Retrieves peer review survey and demographic form questions along with their response options.
- * 
- * This function processes two sheets:
- *    - Sheet1 (index 0): Contains peer review questions and slider label options.
- *    - Sheet2 (index 1): Contains demographic questions and radio button options.
- * 
- * For each section, it reads the text of the questions and parses their respective options.
- * 
- * Returns an object containing:
- *    - questions: An array of peer review question texts.
- *    - labelOptions: A 2D array where each sub-array contains the two extreme labels for a slider.
- *    - demographicQuestions: An array of demographic question texts.
- *    - demographicOptions: A 2D array of radio button labels for each demographic question.
- * 
- * @returns {Object} An object with four properties:
- *    - questions: {string[]}
- *    - labelOptions: {Array<string[] | null>}
- *    - demographicQuestions: {string[]}
- *    - demographicOptions: {Array<string[] | null>}
+  Retrieves peer review survey and demographic form questions along with their response options.
+  
+  This function processes two sheets:
+     - Sheet1 (index 0): Contains peer review questions and slider label options.
+     - Sheet2 (index 1): Contains demographic questions and radio button options.
+  
+  For each section, it reads the text of the questions and parses their respective options.
+  
+  Returns an object containing:
+     - questions: An array of peer review question texts.
+     - labelOptions: A 2D array where each sub-array contains the two extreme labels for a slider.
+     - demographicQuestions: An array of demographic question texts.
+     - demographicOptions: A 2D array of radio button labels for each demographic question.
+  
+  @returns {Object} An object with four properties:
+     - questions: {string[]}
+     - labelOptions: {Array<string[] | null>}
+     - demographicQuestions: {string[]}
+     - demographicOptions: {Array<string[] | null>}
  */
 function questions() {
 
@@ -215,22 +215,22 @@ function questions() {
 
 
 /**
- * Submits a user's peer review responses and demographic data into two separate sheets
- * (Sheet1 and Sheet2) within the active Google Spreadsheet.
- * 
- * This function processes two sheets:
- *    - Sheet1: Each response is stored on a new row with a unique subject ID in column B.
- *        - The first column (A) is ignored and left blank.
- *    - Sheet2: Stores demographic responses, one entry per subject ID.
- *        - No placeholder column is required (column A stores subject ID).
- * 
- * Retrieves the last subject ID from column B of Sheet1.
- * If it's the column header ("SUBJECT ID"), starts from 1.
- * Appends each survey response with the subject ID and a blank first column.
- * Appends the demographic data with the same subject ID to Sheet2.
- * 
- * @param {Array<Array<any>>} responses - A 2D array where each sub-array represents one survey response
- * @param {Array<any>} demographicData - A flat array representing one set of demographic responses
+  Submits a user's peer review responses and demographic data into two separate sheets
+  (Sheet1 and Sheet2) within the active Google Spreadsheet.
+  
+  This function processes two sheets:
+     - Sheet1: Each response is stored on a new row with a unique subject ID in column B.
+         - The first column (A) is ignored and left blank.
+     - Sheet2: Stores demographic responses, one entry per subject ID.
+         - No placeholder column is required (column A stores subject ID).
+  
+  Retrieves the last subject ID from column B of Sheet1.
+  If it's the column header ("SUBJECT ID"), starts from 1.
+  Appends each survey response with the subject ID and a blank first column.
+  Appends the demographic data with the same subject ID to Sheet2.
+  
+  @param {Array<Array<any>>} responses - A 2D array where each sub-array represents one survey response
+  @param {Array<any>} demographicData - A flat array representing one set of demographic responses
  */
 function submitResponses(responses, demographicData) {
 
@@ -276,16 +276,16 @@ function submitResponses(responses, demographicData) {
 
 
 /**
- * Retrieves the HTML content from a file in the Apps Script project's file system.
- * 
- * This function modularizes HTML templates by including shared code 
- * (e.g., headers, footers, styles, or scripts) into a main HTML file.
- * 
- * Example usage inside an HTML template: 
- *    <?!= include('Styles'); ?>
- * 
- * @param {string} filename - The name of the HTML file to include (without file extension)
- * @returns {string} The raw HTML content of the specified file
+  Retrieves the HTML content from a file in the Apps Script project's file system.
+  
+  This function modularizes HTML templates by including shared code 
+  (e.g., headers, footers, styles, or scripts) into a main HTML file.
+  
+  Example usage inside an HTML template: 
+     <?!= include('Styles'); ?>
+  
+  @param {string} filename - The name of the HTML file to include (without file extension)
+  @returns {string} The raw HTML content of the specified file
  */
 function include(filename) {
 
