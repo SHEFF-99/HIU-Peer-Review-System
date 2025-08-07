@@ -1,43 +1,107 @@
 <!-- Index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<base target="_self">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HIU Peer Review</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HIU Peer Review</title>
 
-<?!= include('Styles'); ?>
+  <!-- 
+    Styles are included via Apps Script templating.
+    Keeping presentation separate from structure enhances maintainability.
+  -->
+  <?!= include('Styles'); ?>
 
+  <!-- Optional: Safe default for users without JS -->
+  <noscript>
+    <style>
+      /* Minimal inline fallback styling to ensure message is readable */
+      #noJsWarning { padding: 1em; background: #ffeeba; border: 1px solid #f5c6cb; }
+    </style>
+    <div id="noJsWarning">
+      This survey requires JavaScript to function. Please enable JavaScript and reload the page.
+    </div>
+  </noscript>
 </head>
+
 <body>
+  <!-- Smoothly scroll to the top of the page using this simple anchor point -->
+  <div id="topAnchor"></div>
 
-<!-- Title Block -->
-<div class="title" id="titleBlock">
-  <div id="formTitle" class="title"></div>
-  <div id="submissionMessage" style="display: none;">Your response has been recorded</div> 
-</div>
+  <!-- Header: Contains the title and confirmation message -->
+  <header class="title-block" id="titleBlock">
+    <h1 id="formTitle" class="survey-title" aria-live="polite"></h1>
+    <!-- submissionMessage is announced when finished -->
+    <div id="submissionMessage" class="submission-message hidden" role="status" aria-live="polite">
+      Your response has been recorded
+    </div>
+  </header>
 
-<!-- Loader -->
-<div id="loader" class="loader"></div> 
+  <!-- Loader: should convey busy status -->
+  <div id="loader" class="loader" role="status" aria-busy="true" aria-label="Loading survey">
+    <span class="visually-hidden">Loading...</span>
+  </div>
 
-<!-- Questions Container -->
-<div id="questionsContainer" style="width: 100%";></div>
+  <!-- Main interactive content -->
+  <main id="mainContent">
+    
+    <!-- Questions will be injected here -->
+    <section id="questionsSection">
+      <!-- Container for dynamic questions -->
+      <div id="questionsContainer" class="questions-container" style="width: 100%;"></div>
+    </section>
 
-<!-- Demographic Container -->
-<div id="demographicForm" style="display: none;">
-  <div id="demographicContainer"></div>
-  <div> <button type="button" id="finalSubmitButton" onclick="sendSubmission()">SUBMIT</button> </div>
-</div>
 
-<!-- Submit Block class="form-container" -->
-<div id="submitBlock" style="display: none;" class="input-container">
-  <div> <button type="button" id="reloadButton" onclick="sendResponse(false)">REVIEW ANOTHER PEER?</button> </div>
-  <div> <button type="button" id="submitButton" onclick="sendResponse(true)">SUBMIT</button> </div>
-</div>
+    <!-- Demographic form: grouped logically, uses a form-like pattern for semantics -->
+    <section id="demographicSection">
+      <div id="demographicForm" style="position: relative;">
+        <div id="demographicContainer"></div>
+        <div class="center">
+          <!-- 
+            finalSubmitButton only appears for the subject demographic form
+            since that's the last page before submission.
+          -->
+          <button type="button" id="finalSubmitButton" class="primary-button hidden">
+            SUBMIT
+          </button>
+        </div>
+      </div>
+    </section>
 
-<?!= include('Script'); ?>
+    <!-- Submission controls: handles peer review recording -->
+    <section id="submitBlock" class="hidden" style="position: relative;">
+      <div class="center">
+        <button type="button" id="reloadButton" class="primary-button">
+          REVIEW ANOTHER PEER?
+        </button>
+      </div>
+      <div class="center">
+        <!-- submitButton finishes the peer review section of the survey -->
+        <button type="button" id="submitButton" class="primary-button">
+          SUBMIT
+        </button>
+      </div>
+    </section>
+  </main>
 
+  <!-- Script inclusion: behavior is kept separate; attach event listeners instead of inline handlers. -->
+  <?!= include('Script'); ?>
+  
+  <!-- 
+    Inline configuration to map legacy inline handlers to modern listeners could live in Script.
+    Example in Script.html:
+      dom.reloadButton.addEventListener('click', () => {
+        disableTemporarily(dom.reloadButton);
+        sendResponse(false);
+      });
+      dom.submitButton.addEventListener('click', () => {
+        disableTemporarily(dom.submitButton);
+        sendResponse(true);
+      });
+      dom.finalSubmitButton.addEventListener('click', () => {
+        disableTemporarily(dom.finalSubmitButton);
+        sendSubmission();
+      });
+  -->
 </body>
 </html>
