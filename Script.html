@@ -3,569 +3,678 @@
 <script>
 
 /**
-  This system is dependent of the Google Sheets file titled "Database".
-  
-  The Database spreadsheet contains 3 sheets.
-  Each sheet loads and saves data for this system.
-  
-  Sheet1: Peer Review Survey
-     LOADS:
-       - survey title
-       - question text
-       - slider labels (optional)
-     SAVES:
-       - subject ID
-       - response(s)
-  
-  Sheet2: Demographic Form
-     LOADS:
-       - demographic question text
-       - radio button labels
-     SAVES: 
-       - subject ID
-       - subject demographic data
-      
-  Sheet3: Status and QR Code
-     LOADS:
-       - survey availabity status
+ * Peer Review Frontend Logic
+ *
+ * Responsibilities:
+ * - Bootstraps survey content, availability, and structure from the backend.
+ * - Manages the multi-peer review workflow, including demographic data collection and submission.
+ * - Enforces validation and visual feedback for errors and form state.
+ *
+ * Design Principles:
+ * - Minimal global scope pollution via module pattern.
+ * - Layered responsibilities: state handling, rendering, and server I/O are separated.
+ * - Defensive programming: checks for failures, malformed data, and unavailable status.
+ * - Responsive UI flow with clear affordances and feedback.
  */
 
+const SurveyApp = (() => {
+  // Constants
+  const MAX_REVIEWS = 50;
+  const STATUS_ACTIVE = 'ACTIVE';
+  const STATUS_INACTIVE = 'INACTIVE';
 
+  // Internal state
+  let surveyStatus = null;
+  let questions = [];
+  let labelOptions = [];
+  let reviewCount = 1;
 
-// VARIABLE DECLARATIONS
+  // Responses accumulate per peer review.
+  const responses = [];
 
-// indicates the availabity of the survey webpage
-// possible values: "ACTIVE" or "INACTIVE"
-// loaded from Sheet3 on start up AND during final submission
-let surveyStatus;
+  // Demographic data containers
+  let subjectDemographicQuestions = [];
+  let subjectDemographicOptions = [];
+  let peerDemographicQuestions = [];
+  let peerDemographicOptions = [];
 
-// array of peer review question texts
-// loaded from Sheet1 on start up
-let questions = [];
+  const subjectDemographicData = [];
+  const peerDemographicData = [];
 
-// 2D array of optional extreme labels for each slider question
-// [leftLabel = Extreme Negative, rightLabel = Extreme Positive]
-// loaded from Sheet1 on start up
-let labelOptions = [];
-
-// counter for the number of peer reviews has taken
-// (including the one they are currently on)
-let reviewCount = 1;
-
-// 2D array to store all peer review responses
-// each entry represents a slider answers set for 1 peer review response
-// prevented from storing more than 50 responses
-// saved to Sheet1 after final submission
-const responses = [];
-
-// array for demographic question texts
-// loaded from Sheet2 on start up
-let demographicQuestions = [];
-
-// 2D array of radio button options coresponding to each demographic question
-// each inner array may vary in size depending on the number of options for each question
-// loaded from Sheet2 on start up
-let demographicOptions = [];
-
-// array to store the subjects selected answers from the demographic form
-// saved to Sheet2 after final submission
-let demographicData = [];
-
-
-
-// FUNCTIONS
-
-/**
-  Dynamically generates and displays peer review slider questions in the HTML form.
-  
-  Loops through each question from the "questions" array.
-  Creates a block for each question including:
-     - The question text
-     - A slider input with two extreme labels (Default: "Extreme Negative/Extreme Positive")
-  
-  Inserts each question block into "questionsContainer" element.
-  
-  Sets up the submit block:
-     - Initializes the reload button label with the current review count (1).
-     - Displays the submit button.
-  
-  Disables the loading indicator when questions are loaded.
-  
-  Global Variables Used:
-     - questions: An array of question strings.
-     - labelOptions: An array of [leftLabel, rightLabel] arrays or nulls.
-     - reviewCount: A global counter tracking how many peer reviews have been completed.
-  
-  HTML Element IDs Used:
-     - questionsContainer: The section of the webpage where all survey question blocks are inserted.
-     - loader: An animated loading indicator.
-     - submitBlock: The container for the sumbit button and reload button.
-     - reloadButton: The option for subjects to review another peer.
- */
-function loadFormContent() {
-
-  const questionsContainer = document.getElementById("questionsContainer");
-
-  // loop through and set up each question from the "questions" array
-  questions.forEach((question, index) => {
-    // create a wrapper element for each question block
-    const questionBlock = document.createElement("div");
-    questionBlock.className = "form-container question-block";
-    
-    // create and prepare an element for the question text
-    const questionText = document.createElement("div");
-    questionText.className = "question";
-    questionText.textContent = question;
-    
-    // create the labelled slider container
-    // used to organize the 2 labels and slider within the question block
-    const labelledSliderContainer = document.createElement("div");
-
-    // get the label options or default values if the label data for this question index is invalid
-    const labels = labelOptions[index] && labelOptions[index].length > 0
-      ? labelOptions[index] : ["Extreme Negative", "Extreme Positive"];
-
-    // create the slider container
-    const sliderContainer = document.createElement("div");
-    sliderContainer.className = "slider-container";
-
-    // create the slider input, ID uses same index as the current question in this forEach loop
-    const sliderInput = document.createElement("input");
-    sliderInput.className = "slider";
-    sliderInput.type = "range";
-    sliderInput.id = `slider_${index}`;
-    sliderInput.name = `slider_${index}`;
-    sliderInput.min = "0";
-    sliderInput.max = "100";
-    sliderInput.value = "50"; // default value
-
-    // add the slider input to the slider container to apply the stylings to the mechanism
-    sliderContainer.appendChild(sliderInput);
-
-
-    // For Testing: create the span to display the value of the slider
-    const sliderValue = document.createElement("span");
-    sliderValue.id = `sliderValue_${index}`;
-    sliderValue.textContent = "50%";
-
-
-    // create extreme negative label from "labels" at index 0
-    const extremeNegative = document.createElement("label");
-    extremeNegative.className = "extreme-label";
-    extremeNegative.textContent = labels[0]; 
-
-    // create extreme positive label from "labels" at index 1
-    const extremePositive = document.createElement("label");
-    extremePositive.className = "extreme-label";
-    extremePositive.textContent = labels[1];
-    
-    // add the negative label, slider container, and positive label to the labelled slider container
-    // displays them in a centered horizontal structure
-    labelledSliderContainer.className = "input-container";
-    labelledSliderContainer.appendChild(extremeNegative);
-    labelledSliderContainer.appendChild(sliderContainer);
-    labelledSliderContainer.appendChild(extremePositive);
-    
-    // add the question text and labelled slider container to the question block
-    // displays them in a vertical structure
-    questionBlock.appendChild(questionText);
-    questionBlock.appendChild(labelledSliderContainer);
-
-    // adjust the width and center alignment of the question block
-    questionBlock.style.width = "90%";
-    //questionBlock.style.width = //"800px";
-    questionBlock.style.margin = "20px auto";
-
-    // add the question block to the questions container
-    // question blocks get appended to the bottom of the the container contents
-    questionsContainer.appendChild(questionBlock);
-  });
-
-  // disable the animated loading indicator now
-  document.getElementById("loader").style.display = "none";
-
-  // display the submit block featuring the submitButton and reloadButton
-  document.getElementById("submitBlock").style.display = "block";
-  
-  // set the reloadButton's label to the appropriate text
-  document.getElementById("reloadButton").textContent = "REVIEW ANOTHER PEER? (" + reviewCount + "/50)";
-}
+  // DOM (Document Object Model) cache
+  const dom = {
+    formTitle: null,
+    submissionMessage: null,
+    loader: null,
+    questionsContainer: null,
+    submitBlock: null,
+    reloadButton: null,
+    submitButton: null,
+    finalSubmitButton: null,
+    demographicForm: null,
+    demographicContainer: null,
+    errorBanner: null, // optional element to show errors
+  };
 
 
 
-/**
-  Resets the peer review form to its initial state for the next review round.
-  
-  The subjects view window smoothly scrolls to the top of the page.
-  All slider inputs are reset to the default midpoint value (50).
-  Updates the text of the reload button with the current review count.
-  Disables the reload button if the maximum number of reviews (50) has been reached.
-  
-  Global Variables Used: 
-     - questions
-     - reviewCount
-  
-  HTML Element IDs Used:
-     - Slider inputs, identified by IDs in the format `slider_<index>`
-     - reloadButton
- */
-function reloadFormContent() {
-  // smoothly scrolls back to the top of the survey
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  // reset each slider to the default value of 50
-  questions.forEach((question, index) => {
-
-    const sliderQuestion = document.getElementById(`slider_${index}`);
-    sliderQuestion.value = "50";
-  });
-
-  // update the label for reloadButton using the reviewCount
-  document.getElementById("reloadButton").textContent = "REVIEW ANOTHER PEER? (" + reviewCount + "/50)";
-
-  // diasble the reloadButton if this is the 50th peer review for this subject
-  if(reviewCount === 50) {
-
-    document.getElementById("reloadButton").disabled = true;
+  // --- Initialization Functions ---
+  /**
+   * init()
+   * 
+   * Initializes the app after DOM is ready.
+   * Caches DOM references, binds events, and loads initial content.
+   */
+  function init() {
+    cacheDOM();
+    wireEventHandlers();
+    bootstrap();
   }
-}
 
 
+  /**
+   * cacheDOM()
+   * 
+   * Caches all frequently used DOM elements for performance and convenience.
+   *
+   * Why:
+   * Reduces repeated DOM queries during rendering and interactions.
+   */
+  function cacheDOM() {
+    dom.formTitle = document.getElementById('formTitle');
+    dom.submissionMessage = document.getElementById('submissionMessage');
+    dom.loader = document.getElementById('loader');
+    dom.questionsContainer = document.getElementById('questionsContainer');
+    dom.submitBlock = document.getElementById('submitBlock');
+    dom.reloadButton = document.getElementById('reloadButton');
+    dom.submitButton = document.getElementById('submitButton');
+    dom.finalSubmitButton = document.getElementById('finalSubmitButton');
+    dom.demographicForm = document.getElementById('demographicForm');
+    dom.demographicContainer = document.getElementById('demographicContainer');
 
-/**
-  Collects the current slider responses, validates them, and either:
-     - Reloads the form for another peer review (finalSubmit == false), or
-     - Proceeds to the demographic form (finalSubmit == true).
-  
-  Iterates through each peer review question.
-  Retrieves the slider value from each question and appends it to a temporary "newResponse" array.
-     - Slider inputs have IDs in the format `slider_<index>`.
-  Optionally validates answers (currently all assumed to be valid).
-  Adds the completed newResponse to the global "responses" 2D array.
-  Depending on "finalSubmit":
-     - If false: Increments review count and resets form, invoking reloadFormContent().
-     - If true: Hides the question form and shows the demographic form.
-  
-  Global Variables Used:
-     - questions: An array of peer review questions.
-     - responses: An array that stores all submitted peer review responses.
-     - reviewCount: An integer tracking the number of peer reviews, including the one in progress.
-  
-  HTML Element IDs Used:
-     - questionsContainer: Gets unrendered if finalSubmit is true.
-     - submitBlock: Gets unrendered if finalSubmit is true.
-     - loader
-  
-  @param {boolean} finalSubmit - Indicates whether this is the final review before the demographic form is loaded.
- */
-function sendResponse(finalSubmit) {
-  // temporary array to collect the slider answers of this peer review response
-  const newResponse = [];
-
-  // set the valid flag to true,
-  // assume all answer values are valid unitl proven otherwise
-  let isValid = true;
-
-  // collect the set value of each slider by looping through the "questions" array
-  questions.forEach((_, index) => {
-    // get the corresponding question block, slider, and answer
-    const questionBlock = document.getElementsByClassName("question-block")[index]; 
-    
-    const slider = document.getElementById(`slider_${index}`);
-
-    const answer = slider.value;
-    
-    // verify the answer exists
-    if (answer) {
-      // save the answer to the newResponse array
-      newResponse.push(answer);
+    // Optionally create or reuse an error banner for user-visible errors.
+    // If not present in HTML, create one dynamically.
+    dom.errorBanner = document.getElementById('errorBanner');
+    if (!dom.errorBanner) {
+      dom.errorBanner = document.createElement('div');
+      dom.errorBanner.id = 'errorBanner';
+      dom.errorBanner.style.background = '#f8d7da';
+      dom.errorBanner.style.color = '#721c24';
+      dom.errorBanner.style.padding = '12px';
+      dom.errorBanner.style.border = '2px solid #f5c6cb';
+      dom.errorBanner.style.borderRadius = '4px';
+      dom.errorBanner.style.margin = '8px 0';
+      dom.errorBanner.style.display = 'none';
+      // Insert before the form title for visibility.
+      dom.formTitle?.parentElement?.insertBefore(dom.errorBanner, dom.formTitle.nextSibling);
     }
-    else {
-      // set the valid flag to false
-      isValid = false;
+  }
+
+
+
+  /**
+   * wireEventHandlers()
+   * 
+   * Attaches click handlers to core buttons.
+   *
+   * Why:
+   * Ensures interactions are centralized and debounced where needed.
+   */
+  function wireEventHandlers() {
+    if (dom.reloadButton) {
+      dom.reloadButton.addEventListener('click', () => {
+        disableTemporarily(dom.reloadButton);
+        sendResponse(false);
+      });
     }
-  });
 
-  // if the valid flag is false, stop further execution, save nothing in case of corrupt data
-  if (!isValid) return;
+    if (dom.submitButton) {
+      dom.submitButton.addEventListener('click', () => {
+        disableTemporarily(dom.submitButton);
+        sendResponse(true);
+      });
+    }
 
-  // save the newResponse to the 2D responses array
-  responses.push(newResponse);
-
-  // check if this is the last peer review
-  if (finalSubmit === false) {
-    // this is NOT the last peer review
-
-    // increment the review count
-    reviewCount += 1;
-
-    // prepare the webpgae for another peer review
-    reloadFormContent();
+    if (dom.finalSubmitButton) {
+      dom.finalSubmitButton.addEventListener('click', () => {
+        disableTemporarily(dom.finalSubmitButton);
+        sendSubmission();
+      });
+    }
   }
-  else {
-    // this IS the last peer review
 
-    // disable the survey blocks and set the loader icon
-    document.getElementById("questionsContainer").style.display = "none";
 
-    document.getElementById("submitBlock").style.display = "none";
 
-    document.getElementById("loader").style.display = "block";
-
-    // prepare the webpage for the demographic form (final) section
-    loadDemographicForm(responses);
+  /**
+   * showError(message)
+   * 
+   * Displays a banner error to the user and logs it in console.
+   *
+   * Why:
+   * Combines dev debugging and user-friendly error presentation.
+   * 
+   * @param {string} message - The message to display to the user.
+   */
+  function showError(message) {
+    console.error('[SurveyApp] ', message);
+    if (dom.errorBanner) {
+      dom.errorBanner.textContent = message;
+      dom.errorBanner.style.display = 'block';
+    }
   }
-}
 
 
 
-/**
-  Dynamically generates and displays the demographic form using radio button inputs.
-  
-  Loops through each demographic question from the "demographicQuestions" array.
-  Creates a block for each demographic question including:
-     - The demographic question text
-     - A radio button panel
-  
-  Button Panel Creation:
-     - Generates a set of radio buttons from the corresponding options.
-     - All buttons are assigned them the same `name` attribute (`input_<index>`).
-     - Grouping the buttons with the index of their associated demographic question.
-  
-  Inserts each question block into "demographicContainer" element.
-  
-  Disables the loading indicator.
-  Displays the demographicForm section with the finalSubmitButton (invokes sendSubmission() on click).
-  
-  Global Variables Used:
-     - demographicQuestions:  An array of question strings
-     - demographicOptions: A 2D array of answer options for each question.
-  
-  HTML Element IDs Used:
-     - demographicForm: Contains the demographicContainer and finalSubmitButton.
-     - demographicContainer: The section where all the demographic question blocks get appeneded to.
-     - loader
-  
-  @param {Array<any>} responses : Currently unused. May be reworked in a future version to reduce global variable usage.
- */
-function loadDemographicForm(responses) {
+  /**
+   * clearError()
+   * 
+   * Hides the error banner.
+   *
+   * Why:
+   * Keeps UI clean and feedback minimal unless an error occurs.
+   */
+  function clearError() {
+    if (dom.errorBanner) {
+      dom.errorBanner.textContent = '';
+      dom.errorBanner.style.display = 'none';
+    }
+  }
 
-  const demographicContainer = document.getElementById("demographicContainer");
 
-  // loop through and set up each question from the "demographicQuestions" array
-  demographicQuestions.forEach((demographicQuestion, index) => {
-    // create a wrapper element for each demographic question block
-    const questionBlock = document.createElement("div");
-    questionBlock.className = "form-container demographic-question-block";
-    
-    // create and prepare an element for the question text
-    const questionText = document.createElement("div");
-    questionText.className = "question";
-    questionText.textContent = demographicQuestion;
-    
-    // create the button panel container
-    // used to organize the radio button and their respective labels within the question block
-    const buttonPanel = document.createElement("div");
-    buttonPanel.className = "button-panel";
 
-    
-    // create radio buttons for each option
-    demographicOptions[index].forEach(option => { 
-      // create the label for the option
-      const radioLabel = document.createElement("label");
-      radioLabel.className = "radio-label";
-      radioLabel.textContent = option;
+  /**
+   * bootstrap()
+   * 
+   * Entry point: loads survey title, checks availability, and fetches questions if applicable.
+   *
+   * Why:
+   * Decouples survey setup into discrete, recoverable stages.
+   */
+  function bootstrap() {
+    // Load title
+    google.script.run.withSuccessHandler(title => {
+      dom.formTitle.textContent = title || 'Survey';
+    }).withFailureHandler(err => {
+      showError('Failed to load survey title. Please refresh.'); 
+    }).getTitle(); // Source of title
 
-      // create the radio input for the option
-      const radioInput = document.createElement("input");
-      radioInput.type = "radio";
-      radioInput.name = `input_${index}`; // grouping the options by question index
-      radioInput.value = option;
+    // Load status
+    google.script.run.withSuccessHandler(statusRaw => {
+      surveyStatus = typeof statusRaw === 'string' ? statusRaw.trim() : STATUS_INACTIVE;
 
-      // complete the radio button by adding the radio input to the radio label
-      radioLabel.appendChild(radioInput);
+      if (surveyStatus !== STATUS_ACTIVE) {
+        showUnavailableMessage();
+        return;
+      }
 
-      // add the complete radio button to the button panel container
-      buttonPanel.appendChild(radioLabel);
+      // Load question configuration (cfg) only if active status
+      google.script.run.withSuccessHandler(cfg => {
+        questions = Array.isArray(cfg.questions) ? cfg.questions : [];
+        labelOptions = Array.isArray(cfg.labelOptions) ? cfg.labelOptions : [];
+        subjectDemographicQuestions = Array.isArray(cfg.subjectDemographicQuestions) ? cfg.subjectDemographicQuestions : [];
+        subjectDemographicOptions = Array.isArray(cfg.subjectDemographicOptions) ? cfg.subjectDemographicOptions : [];
+        peerDemographicQuestions = Array.isArray(cfg.peerDemographicQuestions) ? cfg.peerDemographicQuestions : [];
+        peerDemographicOptions = Array.isArray(cfg.peerDemographicOptions) ? cfg.peerDemographicOptions : [];
+
+        if (!questions.length) {
+          showError('No peer review questions configured. Contact the administrator.');
+          return;
+        }
+        
+        loadFormContent();
+      }).withFailureHandler(err => {
+        showError('Failed to load survey configuration. Please try again later.');
+      }).getQuestions(); // Source of cfg
+    }).withFailureHandler(err => {
+        showError('Failed to determine survey availability. Please refresh.');
+    }).checkActiveStatus(); // Source of statusRaw
+  }
+
+
+
+  // --- UI Helper Functions ---
+  /**
+   * showUnavailableMessage()
+   * 
+   * Informs the user that the survey is currently unavailable.
+   *
+   * Why:
+   * Ensures clarity when survey window is closed or misconfigured.
+   */
+  function showUnavailableMessage() {
+    dom.submissionMessage.textContent = 'This survey is not currently available';
+    dom.submissionMessage.classList.remove('hidden');
+    dom.submissionMessage.style.display = 'block';
+    hide(dom.loader);
+  }
+
+
+
+  /**
+   * hide(element)
+   * 
+   * Hides a DOM element by adding a class and setting display.
+   * 
+   * @param {HTMLElement} element
+   */
+  function hide(element) {
+    if (!element) return;
+    element.classList?.add('hidden');
+    element.style.display = 'none';
+  }
+
+
+
+  /**
+   * show(element, display = 'block')
+   * 
+   * Shows a DOM element.
+   * The 2nd parameter is a default parameter.
+   * 
+   * Why:
+   * Provides forward-thinking flexibiilty for element display style.
+   * 
+   * @param {HTMLElement} element
+   * @param {string} [display='block']
+   */
+  function show(element, display = 'block') {
+    if (!element) return;
+    element.classList?.remove('hidden');
+    element.style.display = display;
+  }
+
+
+
+  /**
+   * disableTemporarily(button)
+   * 
+   * Temporarily disables a button to prevent accidental double-clicks.
+   * 
+   * @param {HTMLButtonElement} button
+   */
+  function disableTemporarily(button) {
+    if (!button) return;
+    button.disabled = true;
+    setTimeout(() => { 
+      button.disabled = false; 
+    }, 50);
+  }
+
+
+
+  // --- Form Rendering Functions ---
+  /**
+   * loadFormContent()
+   * 
+   * Renders the full peer review form based on loaded questions.
+   *
+   * Why:
+   * Dynamically adapts to backend-defined question set and options.
+   */
+  function loadFormContent() {
+    clearError();
+    dom.questionsContainer.innerHTML = '';
+
+    questions.forEach((questionTextStr, index) => {
+      // Elements created: question container, slider, and two labels
+      const questionBlock = document.createElement('div');
+      questionBlock.className = 'form-container question-block';
+
+      // TODO: Migrate sizing into CSS instead of inline styles.
+      questionBlock.style.width = '90%';
+      questionBlock.style.margin = '20px auto';
+
+      const questionText = document.createElement('div');
+      questionText.className = 'question';
+      questionText.textContent = questionTextStr;
+
+      const labelledSliderContainer = document.createElement('div');
+      labelledSliderContainer.className = 'input-container';
+
+      const labels = Array.isArray(labelOptions[index]) && labelOptions[index].length === 2
+        ? labelOptions[index] : ['Extreme Negative', 'Extreme Positive'];
+
+      const extremeNegative = document.createElement('label');
+      extremeNegative.className = 'extreme-label';
+      extremeNegative.textContent = labels[0];
+
+      const extremePositive = document.createElement('label');
+      extremePositive.className = 'extreme-label';
+      extremePositive.textContent = labels[1];
+
+      const sliderContainer = document.createElement('div');
+      sliderContainer.className = 'slider-container';
+
+      const sliderInput = document.createElement('input');
+      sliderInput.className = 'slider';
+      sliderInput.type = 'range';
+      sliderInput.id = `slider_${index}`;
+      sliderInput.name = `slider_${index}`;
+      sliderInput.min = '0';
+      sliderInput.max = '100';
+      sliderInput.value = '50';
+
+      sliderContainer.appendChild(sliderInput);
+
+      labelledSliderContainer.appendChild(extremeNegative);
+      labelledSliderContainer.appendChild(sliderContainer);
+      labelledSliderContainer.appendChild(extremePositive);
+
+      questionBlock.appendChild(questionText);
+      questionBlock.appendChild(labelledSliderContainer);
+      dom.questionsContainer.appendChild(questionBlock);
     });
-    
-    // add the demographic question text and completed button panel container to the question block
-    questionBlock.appendChild(questionText);
-    questionBlock.appendChild(buttonPanel);
 
-    // adjust the width and center alignment of the question block
-    questionBlock.style.width = "100%";
-    questionBlock.style.width = "1000px";
-    questionBlock.style.margin = "20px auto";
+    // Prepare peer demographic form
+    loadDemographicForm(peerDemographicQuestions, peerDemographicOptions);
 
-    // add the question block to the demographic questions container
-    // question blocks get appended to the bottom of the the container contents
-    demographicContainer.appendChild(questionBlock);
-  });
+    show(dom.submitBlock);
+    if (dom.reloadButton) {
+      dom.reloadButton.textContent = `REVIEW ANOTHER PEER? (${reviewCount}/${MAX_REVIEWS})`;
+      dom.reloadButton.disabled = false;
+    }
+    hide(dom.loader);
+  }
 
-  document.getElementById("loader").style.display = "none";
-  document.getElementById("demographicForm").style.display = "block";
-}
+
+
+  /**
+   * loadDemographicForm(questionSet, optionSet)
+   * 
+   * Renders demographic questions and their options as radio inputs.
+   * 
+   * Why:
+   * Demographic questions are loaded dynamically to reflect backend configuration.
+   * Radios enforce single selection and ensure valid demographic data collection.
+   * Hides loader and shows the demographic form to maintain UI responsiveness.
+   * 
+   * @param {string[]} questionSet - Array of demographic question strings.
+   * @param {string[][]} optionSet - Array of option arrays corresponding to each question.
+   */
+  function loadDemographicForm(questionSet, optionSet) {
+    if (!Array.isArray(questionSet) || !Array.isArray(optionSet)) return;
+
+    dom.demographicContainer.innerHTML = '';
+    show(dom.demographicForm);
+    hide(dom.loader);
+
+    questionSet.forEach((questionTextStr, index) => {
+      const questionBlock = document.createElement('div');
+      questionBlock.className = 'form-container demographic-question-block';
+      questionBlock.style.width = '90%';
+      questionBlock.style.margin = '20px auto';
+
+      const questionText = document.createElement('div');
+      questionText.className = 'question';
+      questionText.textContent = questionTextStr;
+
+      const buttonPanel = document.createElement('div');
+      buttonPanel.className = 'button-panel';
+
+      const options = Array.isArray(optionSet[index]) ? optionSet[index] : [];
+      options.forEach(option => {
+        const radioLabel = document.createElement('label');
+        radioLabel.className = 'radio-label';
+        radioLabel.textContent = option;
+
+        const radioInput = document.createElement('input');
+        radioInput.type = 'radio';
+        radioInput.name = `radio_input_${index}`;
+        radioInput.value = option;
+
+        radioLabel.appendChild(radioInput);
+        buttonPanel.appendChild(radioLabel);
+      });
+
+      questionBlock.appendChild(questionText);
+      questionBlock.appendChild(buttonPanel);
+      dom.demographicContainer.appendChild(questionBlock);
+    });
+  }
+
+
+
+  // --- Validation Functions ---
+  /**
+   * validateSliderAnswers()
+   * 
+   * Validates that all peer review slider questions have values.
+   *
+   * Why:
+   * Ensures no question is skipped before submission.
+   * Provides immediate user feedback for missing inputs.
+   *
+   * @returns {string[]|null} Array of slider values if valid, or null if validation fails.
+   */
+  function validateSliderAnswers() {
+    const newResponse = [];
+
+    for (let index = 0; index < questions.length; index++) {
+      const slider = document.getElementById(`slider_${index}`);
+      if (!slider) {
+        showError(`Missing slider for question ${index + 1}.`);
+        return null;
+      }
+      const value = slider.value;
+      if (value === undefined || value === null) {
+        showError(`Invalid slider value for question ${index + 1}.`);
+        return null;
+      }
+      newResponse.push(value);
+    }
+
+    return newResponse;
+  }
+
+
+
+  /**
+   * validateRadioAnswers(questionSet)
+   * 
+   * Validates that each demographic question has a selected radio answer.
+   *
+   * Why:
+   * Demographic questions must be fully answered to maintain data integrity.
+   * Highlights unanswered questions visually to guide user correction.
+   * 
+   * @param {string[]} questionSet - Array of demographic questions to validate.
+   * @returns {string[]|null} Array of selected options if all answered, or null if validation fails.
+   */
+  function validateRadioAnswers(questionSet) {
+    const collected = [];
+    let valid = true;
+    const questionBlocks = document.getElementsByClassName('demographic-question-block');
+
+    questionSet.forEach((_, index) => {
+      const questionBlock = questionBlocks[index];
+      const radios = document.getElementsByName(`radio_input_${index}`);
+      const selected = Array.from(radios || []).find(r => r.checked);
+
+      if (!selected) {
+        if (questionBlock) questionBlock.style.border = '4px solid red';
+        valid = false;
+      } 
+      else {
+        if (questionBlock) questionBlock.style.border = '4px solid #E6E63E';
+        collected.push(selected.value);
+      }
+    });
+
+    if (!valid) {
+      showError('Please answer all demographic questions before proceeding.');
+    }
+
+    return valid ? collected : null;
+  }
+
+
+
+  // --- Flow Control Functions ---
+  /**
+   * sendResponse(finalSubmit)
+   * 
+   * Handles peer review form submission (partial or final).
+   *
+   * Why:
+   * Validates both slider responses and peer demographic answers before proceeding.
+   * Aggregates responses to enable multiple peer reviews before final submit.
+   * 
+   * @param {boolean} finalSubmit - Indicates if this is the final submission.
+   */
+  function sendResponse(finalSubmit) {
+    clearError();
+    const newResponse = validateSliderAnswers();
+    const newPeerData = validateRadioAnswers(peerDemographicQuestions);
+
+    if (newResponse && newPeerData) {
+      responses.push(newResponse);
+      peerDemographicData.push(newPeerData);
+      proceedToNextPage(finalSubmit);
+    } 
+    else {
+      console.warn('[sendResponse] Validation failed for peer review or peer demographic.');
+    }
+  }
+
+
+
+  /**
+   * proceedToNextPage(finalSubmit)
+   * 
+   * Controls survey navigation flow after a peer review submission.
+   *
+   * Why:
+   * Manages UI state transitions based on survey progress.
+   * Smoothly scrolls to top for better user experience.
+   * 
+   * @param {boolean} finalSubmit - True if user is completing the survey, false to continue peer reviews.
+   */
+  function proceedToNextPage(finalSubmit) {
+    if (!finalSubmit) {
+      reviewCount += 1;
+      reloadFormContent();
+    } 
+    else {
+      hide(dom.questionsContainer);
+      hide(dom.submitBlock);
+      show(dom.loader);
+      loadDemographicForm(subjectDemographicQuestions, subjectDemographicOptions);
+      show(dom.finalSubmitButton);
+    }
+
+    document.getElementById('topAnchor').scrollIntoView({ behavior: 'smooth' });
+  }
+
+
+
+  /**
+   * sendSubmission()
+   * 
+   * Finalizes survey submission by validating subject demographics and sending all collected data.
+   *
+   * Why:
+   * Ensures all required demographic info is complete before submission.
+   * Verifies survey availability prior to sending to prevent data loss.
+   * Provides user feedback on success or failure.
+   */
+  function sendSubmission() {
+    clearError();
+    const newSubjectData = validateRadioAnswers(subjectDemographicQuestions);
+    if (!newSubjectData) {
+      console.warn('[sendSubmission] Subject demographic validation failed.');
+      return;
+    }
+
+    subjectDemographicData.splice(0, subjectDemographicData.length, ...newSubjectData);
+
+    hide(dom.demographicForm);
+    show(dom.loader);
+    hide(dom.finalSubmitButton);
+
+    // Verify availability then submit
+    google.script.run.withSuccessHandler(statusRaw => {
+      const status = typeof statusRaw === 'string' ? statusRaw.trim() : STATUS_INACTIVE;
+      if (status === STATUS_ACTIVE) {
+        google.script.run.withSuccessHandler(() => {
+          hide(dom.loader);
+          dom.submissionMessage.textContent = 'Your response has been recorded';
+          show(dom.submissionMessage);
+        }).withFailureHandler(err => {
+          showError('Submission failed. Please try again.'); 
+          hide(dom.loader);
+        }).submitResponses(responses, subjectDemographicData, peerDemographicData);
+      } 
+      else {
+        hide(dom.loader);
+        dom.submissionMessage.textContent = 'This survey is not currently available';
+        show(dom.submissionMessage);
+      }
+    }).withFailureHandler(err => {
+      showError('Could not verify survey status. Please refresh.');
+      hide(dom.loader);
+    }).checkActiveStatus();
+  }
+
+
+
+  /**
+   * reloadFormContent()
+   * 
+   * Resets the peer review form for the next peer review iteration.
+   *
+   * Why:
+   * Clears prior responses for fresh input.
+   * Prevents user confusion by visually resetting sliders and radio inputs.
+   * Disables further peer review if max reviews reached, informing the user.
+   */
+  function reloadFormContent() {
+    // Reset sliders to midpoint.
+    questions.forEach((_, index) => {
+      const slider = document.getElementById(`slider_${index}`);
+      if (slider) slider.value = '50';
+    });
+
+    // Reset peer demographic radio selections.
+    peerDemographicQuestions.forEach((_, index) => {
+      const radios = document.getElementsByName(`radio_input_${index}`);
+      Array.from(radios || []).forEach(radio => (radio.checked = false));
+    });
+
+    if (dom.reloadButton) {
+      dom.reloadButton.textContent = `REVIEW ANOTHER PEER? (${reviewCount}/${MAX_REVIEWS})`;
+      if (reviewCount >= MAX_REVIEWS) {
+        dom.reloadButton.disabled = true;
+        showError(`Maximum of ${MAX_REVIEWS} peer reviews reached.`);
+      }
+    }
+  }
+
+  /**
+   * Public API exposed by SurveyApp module.
+   *
+   * Provides the init function to start the survey application lifecycle.
+   *
+   * Why:
+   * Encapsulates internal state and functions,
+   * exposing only what is necessary to minimize global scope pollution.
+   * Ensures controlled initialization from outside.
+   */
+  return {
+    init
+  };
+})();
 
 
 
 /**
-  Validates the subject's demographic data, then submits their peer review response(s) and demographic data if the survey is still available. 
-  
-  Iterates through all demographic questions.
-     - Ensures that a radio button has been selected for each.
-     - Highlights any unanswered questions in red.
-     - Stores valid selection set in selectedOptions.
-  If validation passes:
-     - Pushes all selected answers into the global "demographicData" array.
-     - Hides the "demographicForm" section and displays the "loader" element.
-  Calls checkActiveStatus() to determine if the survey is still open.
-  If the survey is "ACTIVE", sends the peer review and demographic data to the server using submitResponses().
-     - On success, displays a submission confirmation message.
-  If the survey is "INACTIVE", notifies the user that the survey is closed.
-  
-  Backend Apps Script (Code.gs) provides checkActiveStatus() and submitResponses() functions.
-  
-  Global Variables Used:
-     - demographicQuestions
-     - demographicData
-     - responses
-  
-  HTML Element IDs Used:
-     - demographic-question-block: Highlighted red for unfinished after a submission attempt.
-     - Radio inputs for each question have `name="input_<index>"`.
+ * Bootstrap the SurveyApp once the DOM is fully loaded.
+ *
+ * Why:
+ * Ensures that all necessary DOM elements are present before initializing,
+ * preventing errors related to missing or unready elements.
+ * This event-driven approach aligns with modern best practices for frontend initialization.
  */
-function sendSubmission() {
-  // set valid flag to true, assume all answer are valid until proven otherwise
-  let isValid = true;
-
-  // temporary array to gather the complete set of selected radio buttons from the demographic questions
-  let selectedOptions = [];
-
-  // loop thru the demographicQuestions array and save the selected radio button for each question
-  demographicQuestions.forEach((_, index) => {
-    // get the corresponding demographic question block for this index
-    const questionBlock = document.getElementsByClassName("demographic-question-block")[index];
-
-    // get the button panel set for this question block
-    const radioButtons = document.getElementsByName(`input_${index}`);
-
-    // find which of the radio buttons from this set is selected
-    const selectedOption = Array.from(radioButtons).find(radio => radio.checked);
-
-    // verify there is a selected button
-    if (!selectedOption) {
-      // if no button was selected, set the valid flag to false
-      isValid = false;
-
-      // highlight the entire block red to get the subject's attention to the unfinished question
-      questionBlock.style.border = "2px solid red"; 
-    }
-    else {
-      // reset any red highlighted question blocks back to their original state
-      questionBlock.style.border = "4px solid #E6E63E"; // reset block styling
-      selectedOptions.push(selectedOption.value);
-    }
-  });
-
-  // if valid flag is false, no further execution
-  // the selectedOptions array will be reset for the next submission attempt in case the subject changes one of their previously valid answers
-  // the subject must complete the unfinished questions, highlighted in red
-  if (!isValid) return;
-
-  // save the validated selectedOptions array entries to the demographicData array
-  selectedOptions.forEach(answer => {
-    // demographicData is not a 2D array, so the answers must be saved indiviually
-    demographicData.push(answer);
-  });
-  
-  // disable the demographic form section
-  document.getElementById("demographicForm").style.display = "none";
-
-  // enable the loader icon
-  document.getElementById("loader").style.display = "block";
-
-  // before saving anything to the database, load the survey status again
-  google.script.run.withSuccessHandler(function(result) {
-
-    surveyStatus = result;
-  }).checkActiveStatus();
-
-  // verify the survey is still active
-  if(surveyStatus != "INACTIVE") {
-    // if the survey is NOT inactive
-    // send responses to the server
-    google.script.run.withSuccessHandler(function () {
-      
-      // disable loader icon
-      document.getElementById("loader").style.display = "none";
-
-      // enable the submission message section
-      document.getElementById("submissionMessage").style.display = "block";
-    }).submitResponses(responses, demographicData);
-  }
-  else {
-    // if the survey IS inactive
-    // do NOT send anything to database
-
-    // set submission message text to inform the subject of the survey's availabity
-    document.getElementById("submissionMessage").textContent = "This survey is not currently available";
-
-    // enable the updated submission message section
-    document.getElementById("submissionMessage").style.display = "block";
-
-    // disable loader icon
-    document.getElementById("loader").style.display = "none";
-  }
-}
-
-
-
-// load the title string into the formTitle element text
-google.script.run.withSuccessHandler(function(result) {
-
-  document.getElementById("formTitle").textContent = result;
-}).title();
-
-
-
-// load surveyStatus for the survey's availability
-google.script.run.withSuccessHandler(function(result) {
-
-  surveyStatus = result;
-}).checkActiveStatus();
-
-
-
-// load the question
-google.script.run.withSuccessHandler(function(result) {
-  // check the survey's availability before loading any other data
-  if(surveyStatus == "INACTIVE") {
-    // if survey is NOT available
-    // set submission message text to inform the subject of the survey's availabity
-    document.getElementById("submissionMessage").textContent = "This survey is not currently available";
-
-    // enable the updated submission message section
-    document.getElementById("submissionMessage").style.display = "block";
-
-    // disable loader icon
-    document.getElementById("loader").style.display = "none";
-  }
-  else {
-    // if survey IS available
-    // load all data retrieved by function questions() in Code.gs file
-    questions = result.questions;
-
-    // may be null if no custom slider labels were set
-    labelOptions = result.labelOptions; 
-
-    demographicQuestions = result.demographicQuestions;
-
-    demographicOptions = result.demographicOptions;
-
-    // finally, load the 1st peer review survey
-    loadFormContent();
-  }
-}).questions();
-
+document.addEventListener('DOMContentLoaded', () => {
+  SurveyApp.init();
+});
 </script>
