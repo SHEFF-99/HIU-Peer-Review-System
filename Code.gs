@@ -69,6 +69,7 @@ function onOpen() {
 function openWebpage() {
   const controlPanel = getSheetOrThrow(SHEETS.CONTROL_PANEL);
   const url = controlPanel.getRange(3,1).getValue();
+
   if(!url){
     console.warn('[openWebpage] No URL found in Control Panel cell A3.');
   }
@@ -143,13 +144,14 @@ function getTitle() {
 function checkActiveStatus() {
   const controlPanel = getSheetOrThrow(SHEETS.CONTROL_PANEL);
   const status = controlPanel.getRange(2, 2).getValue();
-  if(status === "ACTIVE" || status === "INACTIVE") {
+
+  if(status === STATUS.ACTIVE || status === STATUS.INACTIVE) {
     return status;
   }
 
   console.warn(`[checkActiveStatus] Unexpected status value "${status}", defaulting to "${STATUS.INACTIVE}".`);
 
-  return "INACTIVE";
+  return STATUS.INACTIVE;
 }
 
 
@@ -261,8 +263,9 @@ function submitResponses(responses, subjectDemographicData, peerDemographicData)
     throw new Error('[submitResponses] All inputs must be arrays.');
   }
 
-  const timestamp = new Date().getTime();
-  // TEST LATER: const timestamp = new Date().toISOString(); // ISO string chosen for readability in the queue.
+  // const timestamp = new Date().getTime();
+  // ISO string chosen for readability in the queue.
+  const timestamp = new Date().toISOString();
 
   // Helper wrappers for queue data.
   const responsesQueue = getSheetOrThrow(SHEETS.RESPONSES_QUEUE);
@@ -273,7 +276,8 @@ function submitResponses(responses, subjectDemographicData, peerDemographicData)
   if(responses.length > 0) {
     const timestampedResponses = responses.map(responseEntry => [timestamp, ...responseEntry]);
     const startingResponseRow = responsesQueue.getLastRow() + 1;
-    responsesQueue.getRange(startingResponseRow, 1, timestampedResponses.length, timestampedResponses[0].length).setValues(timestampedResponses);
+    responsesQueue.getRange(startingResponseRow, 1, timestampedResponses.length, timestampedResponses[0].length)
+      .setValues(timestampedResponses);
   }
 
   // Subject Queue: Single row, 1 subject per submission.
@@ -283,7 +287,8 @@ function submitResponses(responses, subjectDemographicData, peerDemographicData)
   if(peerDemographicData.length > 0) {
     const timestampedPeersData = peerDemographicData.map(peerDataEntry => [timestamp, ...peerDataEntry]);
     const startingPeerRow = subjectPeersQueue.getLastRow() + 1;
-    subjectPeersQueue.getRange(startingPeerRow, 1, timestampedPeersData.length, timestampedPeersData[0].length).setValues(timestampedPeersData);
+    subjectPeersQueue.getRange(startingPeerRow, 1, timestampedPeersData.length, timestampedPeersData[0].length)
+      .setValues(timestampedPeersData);
   }
 }
 
@@ -306,7 +311,9 @@ function submitResponses(responses, subjectDemographicData, peerDemographicData)
  */
 function processQueues() {
   // Avoid mutating while live.
-  if(checkActiveStatus() === STATUS.ACTIVE) return;
+  if(checkActiveStatus() === STATUS.ACTIVE) {
+    return;
+  }
 
   const database = SpreadsheetApp.getActiveSpreadsheet();
   console.log(`[processQueues] Starting at ${new Date().toISOString()}`);
@@ -350,6 +357,7 @@ function processQueues() {
       const peerData = peerRow.slice(1);
       const newPeerID = index + 1;
       
+      // Each row of the output arrays should start with the ID, followed by the corresponding data.
       responsesTableOutput.push([newResponseID, ...responseData]);
       subjectPeersTableOutput.push([newSubjectID, newPeerID, ...peerData]);
       recordsTableOutput.push([newResponseID, newSubjectID, newPeerID]);
@@ -396,15 +404,20 @@ function processQueues() {
  */
 function getSheetDataSorted(spreadsheet, sheetName) {
   const sheet = spreadsheet.getSheetByName(sheetName);
-  if(!sheet) throw new Error(`[getSheetDataSorted] Sheet "${sheetName}" not found.`);
+
+  if(!sheet) {
+    throw new Error(`[getSheetDataSorted] Sheet "${sheetName}" not found.`);
+  }
 
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
 
   // getRange() throws errors if the data set is empty.
   // Check if there is more than 1 row since row 1 is used for column headers.
-  if(lastRow <= 1) return [];
-  
+  if(lastRow <= 1) {
+    return [];
+  }
+
   const range = sheet.getRange(2, 1, lastRow - 1, lastCol);
   range.sort([{ column: 1, ascending: true}]);
 
@@ -416,7 +429,7 @@ function getSheetDataSorted(spreadsheet, sheetName) {
 /**
  * getLastIDfromTable(tableName)
  * 
- * Retrieves the last numerical ID from the specified output table.
+ * Retrieves the last numerical ID from the specified table sheet.
  *
  * Why:
  * Allows ID generation to continue from the last written value while gracefully handling
@@ -428,10 +441,16 @@ function getSheetDataSorted(spreadsheet, sheetName) {
  */
 function getLastIDfromTable(tableName) {
   const sheet  = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(tableName);
-  if(!sheet) throw new Error(`[getLastIDfromTable] Table "${tableName}" not found.`);
+
+  if(!sheet) {
+    throw new Error(`[getLastIDfromTable] Table "${tableName}" not found.`);
+  }
 
   const lastRow = sheet.getLastRow();
-  if(lastRow <= 1) return 0;
+
+  if(lastRow <= 1) {
+    return 0;
+  }
 
   const lastID = sheet.getRange(lastRow, 1).getValue();
 
@@ -454,10 +473,14 @@ function getLastIDfromTable(tableName) {
  */
 function clearQueue(queueName) {  
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(queueName);
-  if(!sheet) throw new Error(`[clearQueue] Queue "${queueName}" not found.`);
+
+  if(!sheet) {
+    throw new Error(`[clearQueue] Queue "${queueName}" not found.`);
+  }
 
   // lastRow is used instead of queue.getLastRow() because the range could go out of bounds if there's only 1 row.
   const lastRow = sheet.getLastRow();
+
   if(lastRow > 1) {
     sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clear();
   }
@@ -480,14 +503,20 @@ function clearQueue(queueName) {
  */
 function logDataToTable(tableName, entries) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(tableName);
-  if(!sheet) throw new Error(`[logDataToTable] Table "${tableName}" not found.`);
 
-  if(entries.length === 0) { // No entries to write.
-    const startRow = sheet.getLastRow() + 1;
-
-    // TEST: Tables not saving data after processing...
-    sheet.getRange(startRow, 1, entries.length, entries[0].length).setValues(entries);
+  if(!sheet) {
+    throw new Error(`[logDataToTable] Table "${tableName}" not found.`);
   }
+
+  if(!Array.isArray(entries) || entries.length === 0) {
+    return; // No entries to write.
+  }
+  
+  const startRow = sheet.getLastRow() + 1;
+
+  sheet
+    .getRange(startRow, 1, entries.length, entries[0].length)
+    .setValues(entries);
 }
 
 
@@ -506,7 +535,10 @@ function logDataToTable(tableName, entries) {
  */
 function getSheetOrThrow(name) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if(!sheet) throw new Error(`[getSheetOrThrow] Required sheet "${name}" not found.`);
+
+  if(!sheet) {
+    throw new Error(`[getSheetOrThrow] Required sheet "${name}" not found.`);
+  }
 
   return sheet;
 }
