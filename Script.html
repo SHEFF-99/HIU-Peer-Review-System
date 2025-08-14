@@ -72,6 +72,7 @@ const SurveyApp = (() => {
   }
 
 
+
   /**
    * cacheDOM()
    * 
@@ -93,8 +94,8 @@ const SurveyApp = (() => {
     dom.demographicContainer = document.getElementById('demographicContainer');
 
     // Optionally create or reuse an error banner for user-visible errors.
-    // If not present in HTML, create one dynamically.
     dom.errorBanner = document.getElementById('errorBanner');
+
     if (!dom.errorBanner) {
       dom.errorBanner = document.createElement('div');
       dom.errorBanner.id = 'errorBanner';
@@ -121,16 +122,31 @@ const SurveyApp = (() => {
    * Ensures interactions are centralized and debounced where needed.
    */
   function wireEventHandlers() {
+    // All buttons get temporarily disbaled once clicked to aviod accidentally double-clicking.
+    // The reload button gets disabled permanetnly if the maximum review limit is reached.
+    // This is becasue that button is only for reloading the page for another peer review.
+
     if (dom.reloadButton) {
       dom.reloadButton.addEventListener('click', () => {
-        disableTemporarily(dom.reloadButton);
-        sendResponse(false);
+        // It has to be MAX_REVIEWS - 1 because reviewCount is updated after the button is clicked.
+        if (reviewCount < MAX_REVIEWS - 1) {
+          disableTemporarily(dom.reloadButton);
+        }
+        else {
+          dom.reloadButton.disabled = true
+          showError(`Maximum of ${MAX_REVIEWS} peer reviews reached.`);
+        }
+
+        // Save response, but do not prepare for submission yet.
+        sendResponse(false); 
       });
     }
 
     if (dom.submitButton) {
       dom.submitButton.addEventListener('click', () => {
         disableTemporarily(dom.submitButton);
+
+        // Prepare to send response(s) to spreadsheet.
         sendResponse(true);
       });
     }
@@ -138,6 +154,8 @@ const SurveyApp = (() => {
     if (dom.finalSubmitButton) {
       dom.finalSubmitButton.addEventListener('click', () => {
         disableTemporarily(dom.finalSubmitButton);
+
+        // Send all data (response, peer demographic, subject demographic) to spreadsheet queues.
         sendSubmission();
       });
     }
@@ -157,6 +175,7 @@ const SurveyApp = (() => {
    */
   function showError(message) {
     console.error('[SurveyApp] ', message);
+
     if (dom.errorBanner) {
       dom.errorBanner.textContent = message;
       dom.errorBanner.style.display = 'block';
@@ -258,7 +277,10 @@ const SurveyApp = (() => {
    * @param {HTMLElement} element
    */
   function hide(element) {
-    if (!element) return;
+    if (!element) {
+      return;
+    }
+
     element.classList?.add('hidden');
     element.style.display = 'none';
   }
@@ -278,7 +300,10 @@ const SurveyApp = (() => {
    * @param {string} [display='block']
    */
   function show(element, display = 'block') {
-    if (!element) return;
+    if (!element) {
+      return;
+    }
+
     element.classList?.remove('hidden');
     element.style.display = display;
   }
@@ -293,7 +318,10 @@ const SurveyApp = (() => {
    * @param {HTMLButtonElement} button
    */
   function disableTemporarily(button) {
-    if (!button) return;
+    if (!button) {
+      return;
+    }
+    
     button.disabled = true;
     setTimeout(() => { 
       button.disabled = false; 
@@ -313,16 +341,10 @@ const SurveyApp = (() => {
    */
   function loadFormContent() {
     clearError();
-    dom.questionsContainer.innerHTML = '';
-
     questions.forEach((questionTextStr, index) => {
       // Elements created: question container, slider, and two labels
       const questionBlock = document.createElement('div');
       questionBlock.className = 'form-container question-block';
-
-      // TODO: Migrate sizing into CSS instead of inline styles.
-      questionBlock.style.width = '90%';
-      questionBlock.style.margin = '20px auto';
 
       const questionText = document.createElement('div');
       questionText.className = 'question';
@@ -365,14 +387,15 @@ const SurveyApp = (() => {
       dom.questionsContainer.appendChild(questionBlock);
     });
 
-    // Prepare peer demographic form
+    // Prepare peer demographic form and submit block.
     loadDemographicForm(peerDemographicQuestions, peerDemographicOptions);
-
     show(dom.submitBlock);
+
     if (dom.reloadButton) {
       dom.reloadButton.textContent = `REVIEW ANOTHER PEER? (${reviewCount}/${MAX_REVIEWS})`;
       dom.reloadButton.disabled = false;
     }
+
     hide(dom.loader);
   }
 
@@ -392,17 +415,19 @@ const SurveyApp = (() => {
    * @param {string[][]} optionSet - Array of option arrays corresponding to each question.
    */
   function loadDemographicForm(questionSet, optionSet) {
-    if (!Array.isArray(questionSet) || !Array.isArray(optionSet)) return;
+    if (!Array.isArray(questionSet) || !Array.isArray(optionSet)) {
+      return;
+    }
 
+    // When loading the subject demographic form, clear out the peer demographic form.
     dom.demographicContainer.innerHTML = '';
+
     show(dom.demographicForm);
     hide(dom.loader);
 
     questionSet.forEach((questionTextStr, index) => {
       const questionBlock = document.createElement('div');
       questionBlock.className = 'form-container demographic-question-block';
-      questionBlock.style.width = '90%';
-      questionBlock.style.margin = '20px auto';
 
       const questionText = document.createElement('div');
       questionText.className = 'question';
@@ -451,15 +476,19 @@ const SurveyApp = (() => {
 
     for (let index = 0; index < questions.length; index++) {
       const slider = document.getElementById(`slider_${index}`);
+
       if (!slider) {
         showError(`Missing slider for question ${index + 1}.`);
         return null;
       }
+
       const value = slider.value;
+
       if (value === undefined || value === null) {
         showError(`Invalid slider value for question ${index + 1}.`);
         return null;
       }
+
       newResponse.push(value);
     }
 
@@ -490,14 +519,19 @@ const SurveyApp = (() => {
       const radios = document.getElementsByName(`radio_input_${index}`);
       const selected = Array.from(radios || []).find(r => r.checked);
 
-      if (!selected) {
-        if (questionBlock) questionBlock.style.border = '4px solid red';
+      // If the question block exsists without a selected answer:
+      if (!selected && questionBlock) {
+        questionBlock.style.border = '4px solid red';
         valid = false;
-      } 
-      else {
-        if (questionBlock) questionBlock.style.border = '4px solid #E6E63E';
+      }
+
+      // If the question block exsists with a selected answer:
+      if (selected && questionBlock) {
+        questionBlock.style.border = '4px solid #E6E63E';
         collected.push(selected.value);
       }
+
+      // Assumption: The question block will always exsist.
     });
 
     if (!valid) {
@@ -580,6 +614,7 @@ const SurveyApp = (() => {
   function sendSubmission() {
     clearError();
     const newSubjectData = validateRadioAnswers(subjectDemographicQuestions);
+
     if (!newSubjectData) {
       console.warn('[sendSubmission] Subject demographic validation failed.');
       return;
@@ -631,7 +666,10 @@ const SurveyApp = (() => {
     // Reset sliders to midpoint.
     questions.forEach((_, index) => {
       const slider = document.getElementById(`slider_${index}`);
-      if (slider) slider.value = '50';
+      
+      if (slider) {
+        slider.value = '50';
+      }
     });
 
     // Reset peer demographic radio selections.
@@ -640,13 +678,8 @@ const SurveyApp = (() => {
       Array.from(radios || []).forEach(radio => (radio.checked = false));
     });
 
-    if (dom.reloadButton) {
-      dom.reloadButton.textContent = `REVIEW ANOTHER PEER? (${reviewCount}/${MAX_REVIEWS})`;
-      if (reviewCount >= MAX_REVIEWS) {
-        dom.reloadButton.disabled = true;
-        showError(`Maximum of ${MAX_REVIEWS} peer reviews reached.`);
-      }
-    }
+    // Reset reload button label and disable if review limit is reached.
+    dom.reloadButton.textContent = `REVIEW ANOTHER PEER? (${reviewCount}/${MAX_REVIEWS})`;
   }
 
   /**
